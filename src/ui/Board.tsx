@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Chess, parseUci, type Square } from '../game/chess';
+import { Piece, type PieceType } from './pieces';
 import type { MoveGrade } from '../engine/classify';
 import { GRADE_STYLE } from '../engine/classify';
 
@@ -11,18 +12,7 @@ import { GRADE_STYLE } from '../engine/classify';
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'];
 
-/**
- * نستخدم الرموز المصمتة للونين معًا ونفرّق بينهما بالتلوين والحدّ.
- * الرموز المفرغة (♔♕♖) تُرسم بأشكال مختلفة جذريًا بين الخطوط وتكسر اتساق الرقعة.
- */
-const GLYPH: Record<string, string> = {
-  k: '♚',
-  q: '♛',
-  r: '♜',
-  b: '♝',
-  n: '♞',
-  p: '♟',
-};
+// القطع تُرسم بـSVG (src/ui/pieces.tsx) لا برموز Unicode — انظر التعليق هناك.
 
 export interface BoardArrow {
   from: string;
@@ -165,7 +155,9 @@ export function Board({
                 )}
 
                 {piece && (
-                  <span className={`piece ${piece.color}`}>{GLYPH[piece.type]}</span>
+                  <span className="piece">
+                    <Piece type={piece.type as PieceType} color={piece.color} />
+                  </span>
                 )}
 
                 {legal && (piece ? <span className="ring" /> : <span className="dot" />)}

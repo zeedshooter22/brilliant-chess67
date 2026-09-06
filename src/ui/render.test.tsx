@@ -94,7 +94,7 @@ describe('رسم الرقعة', () => {
       <Board fen={START_FEN} orientation="w" interactive={false} />,
     );
     expect((html.match(/class="square/g) ?? []).length).toBe(64);
-    expect((html.match(/class="piece/g) ?? []).length).toBe(32);
+    expect((html.match(/class="piece"/g) ?? []).length).toBe(32);
   });
 
   it('تقلب الاتجاه للأسود دون أن تفقد قطعة', () => {
@@ -125,7 +125,7 @@ describe('رسم الرقعة', () => {
     const html = renderToStaticMarkup(
       <Board fen="8/5k2/8/4p3/4P3/5K2/8/8 w - - 0 1" orientation="w" interactive={false} />,
     );
-    expect((html.match(/class="piece/g) ?? []).length).toBe(4);
+    expect((html.match(/class="piece"/g) ?? []).length).toBe(4);
   });
 });
 

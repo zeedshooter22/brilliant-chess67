@@ -6,6 +6,13 @@ import { DrillScreen } from './ui/DrillScreen';
 import { DRILL_COUNT } from './data/drills';
 import { DEFAULT_SETTINGS, useBrilliantGame, type GameSettings } from './game/useBrilliantGame';
 import { warmUpEngines } from './engine/pool';
+import {
+  applyBoardTheme,
+  BOARD_THEMES,
+  loadBoardTheme,
+  saveBoardTheme,
+  type BoardTheme,
+} from './ui/pieces';
 import { engineFlavour } from './engine/engine';
 
 type Screen = 'menu' | 'play' | 'review' | 'drills';
@@ -17,6 +24,13 @@ export function App() {
   const [loadProgress, setLoadProgress] = useState({ done: 0, total: 2, label: 'يُقلع المحرك…' });
   const game = useBrilliantGame(DEFAULT_SETTINGS);
   const flavour = engineFlavour();
+  const [boardTheme, setBoardTheme] = useState<BoardTheme>(() => loadBoardTheme());
+
+  // ألوان الرقعة تُطبَّق على متغيّرات CSS فتسري على كل الشاشات دفعةً واحدة
+  useEffect(() => {
+    applyBoardTheme(boardTheme);
+    saveBoardTheme(boardTheme);
+  }, [boardTheme]);
 
   // إقلاع المحركين مرة واحدة عند فتح الموقع
   useEffect(() => {
@@ -102,6 +116,22 @@ export function App() {
               التحليل
             </button>
           )}
+          <select
+            className="theme-picker"
+            value={boardTheme.id}
+            onChange={(e) => {
+              const next = BOARD_THEMES.find((t) => t.id === e.target.value);
+              if (next) setBoardTheme(next);
+            }}
+            title="لون الرقعة"
+            aria-label="لون الرقعة"
+          >
+            {BOARD_THEMES.map((theme) => (
+              <option key={theme.id} value={theme.id}>
+                🎨 {theme.nameAr}
+              </option>
+            ))}
+          </select>
           <span className="engine-badge">{flavour.label}</span>
         </div>
       </div>

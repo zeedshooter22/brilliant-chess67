@@ -292,10 +292,25 @@ export function useBrilliantGame(initialSettings: GameSettings = DEFAULT_SETTING
     [],
   );
 
-  const runEngineTurn = useCallback(async () => {
+  /**
+   * دور المحرك.
+   *
+   * اللقطة الصريحة إلزامية عند الاستدعاء مباشرة بعد setState: قيمة
+   * stateRef.current لا تتحدّث إلا بعد إعادة الرسم، فلو اعتمدنا عليها هنا لحسب
+   * المحرك نقلته من الموقف **قبل** نقلة اللاعب — فيلعب نقلة الجانب الخطأ ثم
+   * يتجمّد الدور. (هذا بالضبط سبب "المحرك يفكّر ولا يلعب".)
+   */
+  const runEngineTurn = useCallback(
+    async (snapshot?: { fen: string; history: PlyRecord[]; settings: GameSettings }) => {
     if (engineBusy.current) return;
-    const current = stateRef.current;
+    const current = snapshot
+      ? { ...stateRef.current, ...snapshot, result: isGameOver(snapshot.fen) }
+      : stateRef.current;
     if (current.result.over) return;
+
+    // حارس: لو كان الدور دور اللاعب فالحالة التي وصلتنا قديمة. الخروج بهدوء
+    // أسلم من لعب نقلة الجانب الخطأ — وهي كانت تُفسد المباراة بصمت.
+    if (sideToMove(current.fen) === current.settings.playerColor) return;
 
     engineBusy.current = true;
     const gen = generation.current;
@@ -407,7 +422,9 @@ export function useBrilliantGame(initialSettings: GameSettings = DEFAULT_SETTING
     } finally {
       engineBusy.current = false;
     }
-  }, [patch, scanPlayerChances]);
+    },
+    [patch, scanPlayerChances],
+  );
 
   const playerMove = useCallback(
     (uci: string) => {
@@ -446,7 +463,14 @@ export function useBrilliantGame(initialSettings: GameSettings = DEFAULT_SETTING
 
       void analyseInBackground(record, gen);
       void trackMateProgress(record, gen);
-      if (!result.over) void runEngineTurn();
+      // اللقطة تُبنى من القيم المحسوبة للتو لا من الحالة القديمة
+      if (!result.over) {
+        void runEngineTurn({
+          fen: applied.fen,
+          history: [...current.history, record],
+          settings: current.settings,
+        });
+      }
       return true;
     },
     [analyseInBackground, runEngineTurn, trackMateProgress],
@@ -465,7 +489,7 @@ export function useBrilliantGame(initialSettings: GameSettings = DEFAULT_SETTING
       await playEngine.configure({ elo: settings.engineElo });
 
       if (settings.playerColor === 'b') {
-        void runEngineTurn();
+        void runEngineTurn({ fen: new Chess().fen(), history: [], settings });
       } else {
         void scanPlayerChances(new Chess().fen(), generation.current);
       }
