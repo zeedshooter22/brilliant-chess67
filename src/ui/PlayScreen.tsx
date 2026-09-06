@@ -4,6 +4,7 @@ import {
   BrilliantFlash,
   EnginePanel,
   EvalBar,
+  GradeSummary,
   HintPanel,
   MateCounter,
   MoveList,
@@ -190,8 +191,9 @@ export function PlayScreen({
         )}
 
         <div className="panel">
-          <h3>النقلات</h3>
-          <MoveList plies={state.history} activePly={lastPly?.ply ?? null} />
+          <h3>النقلات وتقييمها</h3>
+          <GradeSummary plies={state.history} playerColor={state.settings.playerColor} />
+          <MoveList plies={state.history} activePly={lastPly?.ply ?? null} autoScroll />
         </div>
       </div>
 

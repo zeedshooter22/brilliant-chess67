@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Score } from '../engine/types';
-import { formatScore, scoreToCp, scoreToWinProb } from '../engine/types';
+import { formatScore, negateScore, scoreToCp, scoreToWinProb } from '../engine/types';
 import { GRADE_STYLE, type MoveGrade } from '../engine/classify';
 import type { BrilliancyFinding } from '../engine/brilliancy';
 import type { DeceptionMeasure } from '../engine/deception';
@@ -32,49 +32,117 @@ export function EvalBar({ score, orientation }: { score: Score | null; orientati
   );
 }
 
-// ===== قائمة النقلات =====
+// ===== قائمة النقلات مع تقييم حيّ =====
 
+/**
+ * صف واحد لكل نصف نقلة لا لكل نقلة كاملة.
+ *
+ * الترتيب الزوجي (أبيض/أسود في صف) يوفّر مساحة لكنه لا يترك مكانًا لعرض
+ * تصنيف النقلة وتقييمها معًا. والغرض هنا أن ترى **قوة كل نقلة فور لعبها**،
+ * فالصف المستقل هو ما يسمح بذلك بوضوح.
+ */
 export function MoveList({
   plies,
   activePly,
   onSelect,
+  autoScroll = false,
 }: {
   plies: PlyRecord[];
   activePly: number | null;
   onSelect?: (ply: number) => void;
+  autoScroll?: boolean;
 }) {
-  const rows: PlyRecord[][] = [];
-  for (let i = 0; i < plies.length; i += 2) {
-    rows.push([plies[i], plies[i + 1]].filter(Boolean) as PlyRecord[]);
+  const endRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (autoScroll) endRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [autoScroll, plies.length]);
+
+  if (plies.length === 0) {
+    return <div className="muted small">لم تبدأ المباراة بعد.</div>;
   }
 
   return (
     <div className="movelist">
-      {rows.length === 0 && <div className="muted small">لم تبدأ المباراة بعد.</div>}
-      {rows.map((row, index) => (
-        <div className="move-row" key={index}>
-          <span className="move-no">{index + 1}.</span>
-          {row.map((ply) => {
-            const grade = ply.judgement?.grade;
-            const style = grade ? GRADE_STYLE[grade] : null;
-            return (
-              <span
-                key={ply.ply}
-                className={`move-cell ${activePly === ply.ply ? 'active' : ''}`}
-                onClick={() => onSelect?.(ply.ply)}
-              >
-                {style && <span className="grade-dot" style={{ background: style.color }} />}
-                <San>{ply.san}</San>
-                {style?.symbol && (
-                  <span className="grade-tag" style={{ color: style.color }}>
-                    {style.symbol}
-                  </span>
-                )}
+      {plies.map((ply) => {
+        const grade = ply.judgement?.grade;
+        const style = grade ? GRADE_STYLE[grade] : null;
+        const moveNo = Math.floor(ply.ply / 2) + 1;
+        const isWhite = ply.color === 'w';
+
+        // التقييم يُعرض دائمًا من منظور الأبيض ليُقرأ كخط واحد متصل
+        const score = ply.judgement?.playedScore ?? null;
+        const whiteScore: Score | null = score
+          ? isWhite
+            ? score
+            : negateScore(score)
+          : null;
+
+        return (
+          <div
+            key={ply.ply}
+            className={`move-line ${activePly === ply.ply ? 'active' : ''}`}
+            onClick={() => onSelect?.(ply.ply)}
+            role={onSelect ? 'button' : undefined}
+            tabIndex={onSelect ? -1 : undefined}
+          >
+            <span className="move-line-no">
+              {moveNo}
+              {isWhite ? '.' : '…'}
+            </span>
+
+            <span className="move-line-san">
+              <San>{ply.san}</San>
+              {style?.symbol && (
+                <span className="grade-tag" style={{ color: style.color }}>
+                  {style.symbol}
+                </span>
+              )}
+            </span>
+
+            {style ? (
+              <span className="move-line-grade" style={{ color: style.color }}>
+                <span className="grade-dot" style={{ background: style.color }} />
+                {style.ar}
               </span>
-            );
-          })}
-          {row.length === 1 && <span />}
-        </div>
+            ) : (
+              <span className="move-line-grade muted">
+                <span className="grade-dot pending" />
+                يحلّل…
+              </span>
+            )}
+
+            <span className="move-line-eval">
+              {whiteScore ? formatScore(whiteScore) : '—'}
+            </span>
+          </div>
+        );
+      })}
+      <div ref={endRef} />
+    </div>
+  );
+}
+
+/** ملخص تصنيفات المباراة — يعطي صورة سريعة عن أدائك مقابل المحرك. */
+export function GradeSummary({ plies, playerColor }: { plies: PlyRecord[]; playerColor: 'w' | 'b' }) {
+  const counts = new Map<MoveGrade, number>();
+  for (const ply of plies) {
+    if (ply.color !== playerColor || !ply.judgement) continue;
+    const grade = ply.judgement.grade;
+    counts.set(grade, (counts.get(grade) ?? 0) + 1);
+  }
+  const shown: MoveGrade[] = ['brilliant', 'great', 'best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder'];
+  const present = shown.filter((grade) => (counts.get(grade) ?? 0) > 0);
+  if (present.length === 0) return null;
+
+  return (
+    <div className="grade-summary">
+      {present.map((grade) => (
+        <span key={grade} className="grade-summary-item" style={{ borderColor: GRADE_STYLE[grade].color }}>
+          <span className="grade-dot" style={{ background: GRADE_STYLE[grade].color }} />
+          <span style={{ color: GRADE_STYLE[grade].color }}>{GRADE_STYLE[grade].ar}</span>
+          <b>{counts.get(grade)}</b>
+        </span>
       ))}
     </div>
   );

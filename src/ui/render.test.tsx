@@ -8,7 +8,15 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Board } from './Board';
-import { AcceptDeclinePanel, EvalBar, EvalGraph, GradeChip, MateCounter, MoveList } from './components';
+import {
+  AcceptDeclinePanel,
+  EvalBar,
+  EvalGraph,
+  GradeChip,
+  GradeSummary,
+  MateCounter,
+  MoveList,
+} from './components';
 import { BrilliantFlash, EnginePanel, HintPanel } from './components';
 import { Menu } from './Menu';
 import { PlayScreen } from './PlayScreen';
@@ -67,6 +75,24 @@ function makePly(overrides: Partial<PlyRecord> = {}): PlyRecord {
     deception: null,
     mateBefore: null,
     ...overrides,
+  };
+}
+
+function makeJudgement(grade: 'brilliant' | 'blunder' | 'best', cp: number) {
+  return {
+    grade,
+    playedMove: 'e2e4',
+    playedSan: 'e4',
+    playedScore: { type: 'cp' as const, value: cp },
+    bestMove: 'e2e4',
+    bestSan: 'e4',
+    bestScore: { type: 'cp' as const, value: cp },
+    wpBefore: 52,
+    wpAfter: 52,
+    wpLoss: 0,
+    cpLoss: 0,
+    brilliancy: null,
+    missedBrilliancy: false,
   };
 }
 
@@ -174,6 +200,43 @@ describe('رسم اللوحات', () => {
     const html = renderToStaticMarkup(<MoveList plies={[ply]} activePly={0} />);
     expect(html).toContain('grade-dot');
     expect(html).toContain('!!');
+  });
+
+  it('تعرض تقييم كل نقلة من منظور الأبيض دائمًا', () => {
+    // نقلة سوداء تقييمها +1.50 من منظور اللاعب = ‎-1.50 من منظور الأبيض.
+    // قلب الإشارة هنا هو ما يجعل عمود التقييم يُقرأ كخط واحد متصل.
+    const blackPly = makePly({
+      ply: 1,
+      color: 'b',
+      san: 'e5',
+      uci: 'e7e5',
+      judgement: makeJudgement('best', 150),
+    });
+    const html = renderToStaticMarkup(<MoveList plies={[blackPly]} activePly={null} />);
+    expect(html).toContain('-1.50');
+    expect(html).not.toContain('+1.50');
+    expect(html).toContain('1…');
+  });
+
+  it('تعرض حالة الانتظار للنقلات التي لم يصل تحليلها بعد', () => {
+    const html = renderToStaticMarkup(<MoveList plies={[makePly()]} activePly={null} />);
+    expect(html).toContain('يحلّل');
+    expect(html).toContain('pending');
+  });
+
+  it('ملخّص التصنيفات يعدّ نقلاتك وحدها لا نقلات المحرك', () => {
+    const mine = makePly({ ply: 0, color: 'w', judgement: makeJudgement('brilliant', 200) });
+    const engine = makePly({
+      ply: 1,
+      color: 'b',
+      byEngine: true,
+      judgement: makeJudgement('blunder', -300),
+    });
+    const html = renderToStaticMarkup(
+      <GradeSummary plies={[mine, engine]} playerColor="w" />,
+    );
+    expect(html).toContain('بريليانت');
+    expect(html).not.toContain('بلندر');
   });
 
   it('عدّاد المات ولوحة القبول والرفض ووسام التصنيف', () => {
