@@ -6,3 +6,6 @@ dist/
 # ملفات المحرك (~14MB) تُنسخ تلقائيًا من حزمة stockfish عبر postinstall
 # (scripts/copy-engine.mjs) — لا داعي لتضخيم المستودع بها.
 public/engine/
+
+# مخلفات بناء TypeScript
+tsconfig.tsbuildinfo
